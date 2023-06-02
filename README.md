@@ -4,7 +4,7 @@ My attempt on implementing carykh's Loop Over 2D Rubik's Cube on Android using A
 ## Inspiration
 carykh's video on YouTube: [How I made a 2D Rubik's Cube](https://www.youtube.com/watch?v=95rtiz-V2zM)
 
-Idea by Cary, the application execution is my attempt.
+Idea by Cary, the application execution is my attempt [Jolly Frankle](https://github.com/JollyFrankle).
 
 # Screenshots
 <div style="display: grid;">
