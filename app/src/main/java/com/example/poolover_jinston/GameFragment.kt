@@ -3,12 +3,10 @@ package com.example.poolover_jinston
 import android.os.Bundle
 import android.util.Log
 import android.view.*
-import androidx.fragment.app.Fragment
 import android.widget.RelativeLayout
-import android.widget.Toast
+import androidx.fragment.app.Fragment
 import com.example.poolover_jinston.databinding.FragmentGameBinding
 import kotlin.math.abs
-import kotlin.random.Random
 
 /**
  * A simple [Fragment] subclass.
@@ -23,6 +21,8 @@ class GameFragment : Fragment() {
     private var direction = 0 // -1 = horizontal, 1 = vertical
     private var swipeCount = 0
 
+    private var tileCount = 2
+
     private var prevX = 0f
     private var prevY = 0f
     private var initialX = 0f
@@ -36,37 +36,12 @@ class GameFragment : Fragment() {
     private var tempIndexX = 0
     private var tempIndexY = 0
 
-    private lateinit var tileScrollH: List<MutableList<TileView>>
-    private lateinit var tileScrollV: List<MutableList<TileView>>
+    private val tileScrollH: MutableList<MutableList<TileView>> = mutableListOf()
+    private val tileScrollV: MutableList<MutableList<TileView>> = mutableListOf()
 
-    private lateinit var boardContent: List<MutableList<Char>>
-    private var boardColor: HashMap<Char, Int> = hashMapOf(
-        'A' to android.graphics.Color.rgb(250, 130, 130),
-        'B' to android.graphics.Color.rgb(240, 140, 130),
-        'C' to android.graphics.Color.rgb(230, 150, 130),
-        'D' to android.graphics.Color.rgb(220, 160, 130),
-        'E' to android.graphics.Color.rgb(210, 170, 130),
-        'F' to android.graphics.Color.rgb(200, 180, 130),
-        'G' to android.graphics.Color.rgb(190, 190, 130),
-        'H' to android.graphics.Color.rgb(180, 200, 130),
-        'I' to android.graphics.Color.rgb(170, 210, 130),
-        'J' to android.graphics.Color.rgb(160, 220, 130),
-        'K' to android.graphics.Color.rgb(150, 230, 130),
-        'L' to android.graphics.Color.rgb(140, 240, 130),
-        'M' to android.graphics.Color.rgb(130, 250, 130),
-        'N' to android.graphics.Color.rgb(130, 240, 140),
-        'O' to android.graphics.Color.rgb(130, 230, 150),
-        'P' to android.graphics.Color.rgb(130, 220, 160),
-        'Q' to android.graphics.Color.rgb(130, 210, 170),
-        'R' to android.graphics.Color.rgb(130, 200, 180),
-        'S' to android.graphics.Color.rgb(130, 190, 190),
-        'T' to android.graphics.Color.rgb(130, 180, 200),
-        'U' to android.graphics.Color.rgb(130, 170, 210),
-        'V' to android.graphics.Color.rgb(130, 160, 220),
-        'W' to android.graphics.Color.rgb(130, 150, 230),
-        'X' to android.graphics.Color.rgb(130, 140, 240),
-        'Y' to android.graphics.Color.rgb(130, 130, 250),
-    )
+    private lateinit var boardContent: List<MutableList<String>>
+    private val boardTextContent = mutableListOf<String>()
+    private lateinit var boardColor: HashMap<String, Int>
 
     private val activity: MainActivity get() = requireActivity() as MainActivity
 
@@ -81,6 +56,8 @@ class GameFragment : Fragment() {
 
         binding.root.setOnClickListener { }
         binding.root.setOnTouchListener(onTouchEvent)
+
+        tileCount = arguments?.getInt("tileCount") ?: 5
         return binding.root
     }
 
@@ -98,35 +75,32 @@ class GameFragment : Fragment() {
 
         board.viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
 
-        boardContent = mutableListOf(
-            mutableListOf('A', 'B', 'C', 'D', 'E'),
-            mutableListOf('F', 'G', 'H', 'I', 'J'),
-            mutableListOf('K', 'L', 'M', 'N', 'O'),
-            mutableListOf('P', 'Q', 'R', 'S', 'T'),
-            mutableListOf('U', 'V', 'W', 'X', 'Y'),
-        )
+        if (tileCount * tileCount <= 26) {
+            for (i in 0 until tileCount * tileCount) {
+                boardTextContent.add((i + 'A'.code).toChar().toString())
+            }
+        } else {
+            for (i in 1 .. tileCount * tileCount) {
+                boardTextContent.add(i.toString())
+            }
+        }
 
-        tileScrollH = listOf(
-            mutableListOf(),
-            mutableListOf(),
-            mutableListOf(),
-            mutableListOf(),
-            mutableListOf(),
-            mutableListOf(), // Overflow row
-        )
+        // Partition the boardTextContent into tileCount x tileCount
+        boardContent = boardTextContent.chunked(tileCount) { it.toMutableList() }
 
-        tileScrollV = listOf(
-            mutableListOf(),
-            mutableListOf(),
-            mutableListOf(),
-            mutableListOf(),
-            mutableListOf(),
-            mutableListOf(), // Overflow column
-        )
+        // Setup color coding
+        boardColor = ColourGenerator.generateTileColours(boardTextContent, tileCount)
+
+        // Setup tileScrollH and tileScrollV
+        for (i in 0 .. tileCount) {
+            tileScrollH.add(mutableListOf())
+            tileScrollV.add(mutableListOf())
+            // The last one is for overflow
+        }
 
         // Setup tiles:
-        for (i in 0..5) {
-            for (j in 0..5) {
+        for (i in 0..tileCount) {
+            for (j in 0..tileCount) {
                 val tile = TileView(activity)
                 tile.id = View.generateViewId()
                 tileScrollH[i].add(tile)
@@ -142,11 +116,6 @@ class GameFragment : Fragment() {
 //            Log.d("MainActivity", "onTouchEvent: ${event.x}, ${event.y}")
             initialX = event.x
             initialY = event.y
-
-            if (activity.startTime == 0L) {
-                activity.startTime = System.currentTimeMillis()
-                activity.setupTimer()
-            }
         }
 
         if (event?.action == MotionEvent.ACTION_MOVE) {
@@ -176,7 +145,12 @@ class GameFragment : Fragment() {
             direction = 0
             swipeCount = 0
 
-            activity.checkIsSolved(boardContent)
+            if (activity.startTime == 0L) {
+                activity.startTime = System.currentTimeMillis()
+                activity.setupTimer()
+            }
+
+            activity.checkIsSolved(boardContent, boardTextContent)
         }
         return@OnTouchListener v.performClick()
     }
@@ -200,7 +174,7 @@ class GameFragment : Fragment() {
         val deltaX = event.x - prevX
 
         // Handle wrap around
-        if (elements[5].x > boardSize) {
+        if (elements[tileCount].x > boardSize) {
             elements.forEach { element ->
                 element.x -= tileSize
             }
@@ -222,7 +196,7 @@ class GameFragment : Fragment() {
         val deltaY = event.y - prevY
 
         // Handle wrap around
-        if (elements[5].y > boardSize) {
+        if (elements[tileCount].y > boardSize) {
             elements.forEach { element ->
                 element.y -= tileSize
             }
@@ -241,57 +215,49 @@ class GameFragment : Fragment() {
     }
 
     private fun shiftX(rowNum: Int, direction: Int) {
-        try {
-            val temp = boardContent[rowNum].toMutableList()
-            if (direction == 1) {
-                boardContent[rowNum].forEachIndexed { i, _ ->
-                    if (i == 4) {
-                        boardContent[rowNum][i] = temp[0]
-                    } else {
-                        boardContent[rowNum][i] = temp[i + 1]
-                    }
-                }
-            } else {
-                boardContent[rowNum].forEachIndexed { i, _ ->
-                    if (i == 0) {
-                        boardContent[rowNum][i] = temp[4]
-                    } else {
-                        boardContent[rowNum][i] = temp[i - 1]
-                    }
+        val temp = boardContent[rowNum].toMutableList()
+        if (direction == 1) {
+            boardContent[rowNum].forEachIndexed { i, _ ->
+                if (i == tileCount-1) {
+                    boardContent[rowNum][i] = temp[0]
+                } else {
+                    boardContent[rowNum][i] = temp[i + 1]
                 }
             }
-
-            drawBoardX(rowNum)
-        } catch (e: Exception) {
-            Toast.makeText(activity, "Error: $e", Toast.LENGTH_SHORT).show()
+        } else {
+            boardContent[rowNum].forEachIndexed { i, _ ->
+                if (i == 0) {
+                    boardContent[rowNum][i] = temp[tileCount-1]
+                } else {
+                    boardContent[rowNum][i] = temp[i - 1]
+                }
+            }
         }
+
+        drawBoardX(rowNum)
     }
 
     private fun shiftY(colNum: Int, direction: Int) {
-        try {
-            val temp = boardContent.map { it[colNum] }.toMutableList()
-            if (direction == 1) {
-                boardContent.forEachIndexed { i, _ ->
-                    if (i == 4) {
-                        boardContent[i][colNum] = temp[0]
-                    } else {
-                        boardContent[i][colNum] = temp[i + 1]
-                    }
-                }
-            } else {
-                boardContent.forEachIndexed { i, _ ->
-                    if (i == 0) {
-                        boardContent[i][colNum] = temp[4]
-                    } else {
-                        boardContent[i][colNum] = temp[i - 1]
-                    }
+        val temp = boardContent.map { it[colNum] }.toMutableList()
+        if (direction == 1) {
+            boardContent.forEachIndexed { i, _ ->
+                if (i == tileCount-1) {
+                    boardContent[i][colNum] = temp[0]
+                } else {
+                    boardContent[i][colNum] = temp[i + 1]
                 }
             }
-
-            drawBoardY(colNum)
-        } catch (e: Exception) {
-            Toast.makeText(activity, "Error: $e", Toast.LENGTH_SHORT).show()
+        } else {
+            boardContent.forEachIndexed { i, _ ->
+                if (i == 0) {
+                    boardContent[i][colNum] = temp[tileCount-1]
+                } else {
+                    boardContent[i][colNum] = temp[i - 1]
+                }
+            }
         }
+
+        drawBoardY(colNum)
     }
 
     private fun snapX(elements: List<TileView>, rowNum: Int) {
@@ -308,17 +274,13 @@ class GameFragment : Fragment() {
                 element.animate().xBy(-tileSize-tile0x).duration = 100
             }
 
-            try {
-                val temp = boardContent[rowNum].toMutableList()
-                boardContent[rowNum].forEachIndexed { i, _ ->
-                    if (i == 4) {
-                        boardContent[rowNum][i] = temp[0]
-                    } else {
-                        boardContent[rowNum][i] = temp[i + 1]
-                    }
+            val temp = boardContent[rowNum].toMutableList()
+            boardContent[rowNum].forEachIndexed { i, _ ->
+                if (i == tileCount-1) {
+                    boardContent[rowNum][i] = temp[0]
+                } else {
+                    boardContent[rowNum][i] = temp[i + 1]
                 }
-            } catch (e: Exception) {
-                Toast.makeText(activity, "Error [OH NO THIS TIME]: $e", Toast.LENGTH_SHORT).show()
             }
 
             drawBoardX(rowNum)
@@ -347,7 +309,7 @@ class GameFragment : Fragment() {
 
             val temp = boardContent.map { it[colNum] }.toMutableList()
             boardContent.forEachIndexed { i, _ ->
-                if (i == 4) {
+                if (i == tileCount-1) {
                     boardContent[i][colNum] = temp[0]
                 } else {
                     boardContent[i][colNum] = temp[i + 1]
@@ -371,7 +333,7 @@ class GameFragment : Fragment() {
         boardY = board.y
 
         // Get tile size
-        tileSize = boardSize / 5
+        tileSize = boardSize / tileCount
 
         tileScrollH.forEachIndexed { i, tileList ->
             tileList.forEachIndexed { j, tile ->
@@ -381,11 +343,13 @@ class GameFragment : Fragment() {
                 tile.x = boardX + tileSize * j
                 tile.y = boardY + tileSize * i
 
+                tile.textSize = tileSize / 4f
+
                 // Text
-                if (i != 5) {
+                if (i != tileCount) {
                     drawBoardX(i, i)
                 } else {
-                    drawBoardX(0, 5)
+                    drawBoardX(0, tileCount)
                 }
             }
         }
@@ -393,12 +357,12 @@ class GameFragment : Fragment() {
 
     private fun drawBoardX(rowNumSrc: Int, rowNumDest: Int = rowNumSrc) {
         tileScrollH[rowNumDest].forEachIndexed { i, tile ->
-            if (i == 5) {
+            if (i == tileCount) {
                 // Last column, repeat first column
-                tile.text = boardContent[rowNumSrc][0].toString()
+                tile.text = boardContent[rowNumSrc][0]
                 tile.setBackgroundColor(boardColor[boardContent[rowNumSrc][0]]!!)
             } else {
-                tile.text = boardContent[rowNumSrc][i].toString()
+                tile.text = boardContent[rowNumSrc][i]
                 tile.setBackgroundColor(boardColor[boardContent[rowNumSrc][i]]!!)
             }
         }
@@ -408,12 +372,12 @@ class GameFragment : Fragment() {
 
     private fun drawBoardY(colNumSrc: Int, colNumDest: Int = colNumSrc) {
         tileScrollV[colNumDest].forEachIndexed { i, tile ->
-            if (i == 5) {
+            if (i == tileCount) {
                 // Last column, repeat first column
-                tile.text = boardContent[0][colNumSrc].toString()
+                tile.text = boardContent[0][colNumSrc]
                 tile.setBackgroundColor(boardColor[boardContent[0][colNumSrc]]!!)
             } else {
-                tile.text = boardContent[i][colNumSrc].toString()
+                tile.text = boardContent[i][colNumSrc]
                 tile.setBackgroundColor(boardColor[boardContent[i][colNumSrc]]!!)
             }
         }
@@ -422,25 +386,18 @@ class GameFragment : Fragment() {
     }
 
     fun scramble() {
-        val randomChars = generateSequence { Random.nextInt(0, 25) }
-            .distinct()
-            .take(25)
-            .map { it + 'A'.code }
-            .map { it.toChar() }
-            .toList()
-            .shuffled()
-            .toCharArray()
+        val shuffled = boardContent.flatten().shuffled()
 
-        for (i in 0..4) {
-            for (j in 0..4) {
-                boardContent[i][j] = randomChars[i * 5 + j]
+        for (i in 0 until tileCount) {
+            for (j in 0 until tileCount) {
+                boardContent[i][j] = shuffled[i * tileCount + j]
             }
         }
 
         // Draw the board
-        for (i in 0..4) {
+        for (i in 0 until tileCount) {
             drawBoardX(i)
         }
-        drawBoardX(0, 5)
+        drawBoardX(0, tileCount)
     }
 }

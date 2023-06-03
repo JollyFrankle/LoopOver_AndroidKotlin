@@ -3,8 +3,8 @@ package com.example.poolover_jinston
 import android.content.Intent
 import android.os.Bundle
 import android.os.CountDownTimer
-import androidx.appcompat.app.AppCompatActivity
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import com.example.poolover_jinston.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -17,14 +17,22 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var gameFragment: GameFragment
 
+    private var tileCount = 0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        tileCount = intent.getIntExtra("tileCount", 5)
+
         // Set game fragment
         gameFragment = GameFragment()
+        gameFragment.arguments = Bundle().apply {
+            putInt("tileCount", tileCount)
+        }
+
         supportFragmentManager.beginTransaction()
             .replace(binding.boardFragment.id, gameFragment)
             .commit()
@@ -56,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         timer = stopwatch
+        timerTv.text = "00:00.00"
         stopwatch.start()
         movesCount = 0
         binding.tvMovesCount.text = "Moves: $movesCount"
@@ -73,8 +82,8 @@ class MainActivity : AppCompatActivity() {
         binding.tvMovesCount.text = "Moves: $movesCount"
     }
 
-    fun checkIsSolved(boardContent: List<MutableList<Char>>) {
-        val solved = boardContent.flatten() == ('A'..'Y').toList()
+    fun checkIsSolved(boardContent: List<MutableList<String>>, solvedContent: List<String>) {
+        val solved = boardContent.flatten() == solvedContent
         movesCount++
         binding.tvMovesCount.text = "Moves: $movesCount"
         if (solved) {
